@@ -1,114 +1,266 @@
-var keys = require("./keys.js");
-var Twitter = require("twitter");
+//set variables requiring npm packages etc
+
+var keys = require('./keys.js');
+var Twitter = require('twitter');
 var spotify = require('spotify');
 var request = require('request');
+var inquirer = require('inquirer');
+var fs = require('fs');
+
+//set variables for inquirer prompt functions
+
+var twitterPrompt = inquirer.createPromptModule();
+var spotifyPrompt = inquirer.createPromptModule();
+var moviePrompt = inquirer.createPromptModule();
+
+//set variable to grab hidden Twitter keys
+
+var client = new Twitter({
+    consumer_key: keys.twitterKeys.consumer_key,
+    consumer_secret: keys.twitterKeys.consumer_secret,
+    access_token_key: keys.twitterKeys.access_token_key,
+    access_token_secret: keys.twitterKeys.access_token_secret
+});
+
+//Use inquirer for selection of commands
+
+inquirer.prompt([{
+            type: "list",
+            message: "What command would you like to run?",
+            choices: ["my-tweets", "spotify-this-song", "movie-this", "do-what-it-says"],
+            name: "commands"
+        }
+
+    ]).then(function(user) {
+            console.log(JSON.stringify(user, null, 2));
+
+            //==========================================Twitter===============================================
+
+            if (user.commands === "my-tweets") {
 
 
-//Twitter
+                twitterPrompt([{
+                        type: "confirm",
+                        message: "Are you sure you want to view my past posts?",
+                        name: "confirm",
+                        default: true
+                    }
 
-var getTweets = function() {
+                ]).then(function(user) {
 
-    var client = new Twitter(keys.twitterKeys);
+                    //If user confirms yes and there is no error, my last 20 Tweets will be listed
 
-    var params = { screen_name: 'johntg5_wake' };
-    client.get('statuses/user_timeline', params, function(error, tweets, response) {
-        if (!error) {
-            console.log(tweets);
-            for (var i = 0; i < tweets.length; i++) {
-                console.log(tweets[i].created_at);
-                console.log(" ");
-                console.log(tweets[i].text);
+                    if (user.confirm === true) {
+                        //console.log("test");
+
+                        var params = {
+                            screen_name: "johntg5_wake",
+                            count: 20
+                        };
+
+                        //console.log(params.screen_name);
+
+                        client.get("statuses/user_timeline", params, function(error, response) {
+                            if (!error) {
+                                for (var i = 0; i < response.length; i++) {
+                                    var time = response[i].created_at;
+                                    var tweets = response[i].text;
+                                    var user = params.screen_name;
+                                    console.log("============================================");
+                                    console.log("");
+                                    console.log("----------------" + time + "--------------------------");
+                                    console.log("");
+                                    console.log("@" + user + " tweeted:");
+                                    console.log("");
+                                    console.log(tweets);
+                                    console.log("");
+                                    console.log("============================================");
+                                }
+                                //console.log(tweets);
+                            }
+                            else {
+                                console.log(error);
+                            }
+                        });
+
+
+                    }
+                    else {
+                        console.log("============================================");
+                        console.log("");
+                        console.log("Try looking up a movie or song!");
+                        console.log("");
+                        console.log("============================================");
+                    }
+                });
+
+                //=======================================Spotify===============================================
+
             }
+            else if (user.commands === "spotify-this-song") {
 
-        }
-    });
-}
+                //prompt user to type in song to lookup - 'The Sign' by Ace of Base set as default
+                spotifyPrompt([{
+                        type: "input",
+                        message: "What song should I look up?",
+                        name: "song",
+                        default: "The Sign Ace of Base"
+                    }
 
+                    //set up Spotify search for Track based on "song" input by user
 
-//Spotify
+                ]).then(function(response) {
 
-var getArtistName = function(artist) {
-    return artist.name;
-}
+                    spotify.search({
+                        type: 'track',
+                        query: response.song,
+                        limit: 1
+                    }, function(err, data) {
+                        if (err) {
+                            console.log('Error occurred: ' + err);
+                            return;
 
-var getSpotify = function(songName) {
+                            //set up base path for finding information through Spotify API
 
-    spotify.search({ type: 'track', query: songName }, function(err, data) {
-        if (err) {
-            console.log("Error occurred: " + err);
-            return;
-        }
+                        }
+                        else {
+                            var trackName = data.tracks.items;
 
-        var song = data.tracks.items;
-        for (var i = 0; i < songs.length; i++) {
-            console.log(i);
-            console.log('artist(s):' + songs[i].artists.map(getArtistName));
-            console.log("song name: " + songs[i].name);
-            console.log('preview song: ' + songs[i].preview_url);
-            console.log('album: ' + songs[i].album.name);
-            console.log('-----------------------------------');
-        }
-    });
+                            //for loop through results to pick out desired information
 
-}
-//OMDB
+                            for (var i = 0; i < 1; i++) {
 
+                                var trackData = trackName[i];
 
+                                var artists = trackData.artists[0].name;
+                                var song = trackData.name;
+                                var preview = trackData.preview_url;
+                                var album = trackData.album.name;
 
-var getMovie = function(movieName) {
+                                //console log out the information found on the track provided by user
 
-    request("http://www.omdbapi.com/?t=" + movieName + "&y=&plot=short&apikey=trilogy", function(error, response, body) {
-        if (!error && response.statusCode === 200) {
-
-            var jsonData = JSON.parse(body);
-
-            console.log("Title: " + jsonData.Title);
-            console.log("Year: " + jsonData.Year);
-            console.log("IMDB Rating: " + jsonData.imdbRating);
-            console.log("Rotten Tomatoes Rating: " + jsonData.tomatoRating);
-            console.log("Country: " + jsonData.Country);
-            console.log("Language: " + jsonData.Language);
-            console.log("Plot: " + jsonData.Plot);
-            console.log("Actors: " + jsonData.Actors);
-        }
-    });
-
-}
-
-var doWhatItSays = function() {
-        fs.readFile('random.txt', "utf-8", function(err, data) {
-            if (err) throw err;
+                                console.log("============================================");
+                                console.log("");
+                                console.log("Artist: " + artists);
+                                console.log("~~~~~~~~~~~~~~~~~~~~~");
+                                console.log("Song Title: " + song);
+                                console.log("~~~~~~~~~~~~~~~~~~~~~");
+                                console.log("Album: " + album);
+                                console.log("~~~~~~~~~~~~~~~~~~~~~");
+                                console.log("Song Preview: " + preview);
+                                console.log("");
+                                console.log("============================================");
+                            }
+                        }
+                    });
+                });
 
 
-            var dataArr = data.split(",");
-            if (dataArr.length === 2) {
-                pick(dataArr[0], dataArr[1]);
+                //===========================================OMDB================================================
+
             }
-            else if (dataArr.length === 1) {
-                pick(dataArr[0]);
+            else if (user.commands === "movie-this") {
+
+                moviePrompt([{
+                        type: "input",
+                        message: "What movie should I look up?",
+                        name: "movie",
+                        default: "Mr. Nobody"
+                    }
+
+                ]).then(function(response) {
+
+                    //run a request to the OMDB API with the movie specified by user
+
+                    request("http://www.omdbapi.com/?t=" + response.movie + "&y=&plot=short&apikey=trilogy", function(error, response, body) {
+
+                        // If there is no error, and the request is successful (i.e. if the response status code is 200)
+
+                        if (!error && response.statusCode === 200) {
+
+                            // Parse the body of the site and recover the info needed
+
+                            console.log("======================================");
+                            console.log("");
+                            console.log("Title: " + JSON.parse(body).Title);
+                            console.log("~~~~~~~~~~~~~~~~~~~~~");
+                            console.log("Release Date: " + JSON.parse(body).Year);
+                            console.log("~~~~~~~~~~~~~~~~~~~~~");
+                            console.log("IMBD rating: " + JSON.parse(body).imdbRating);
+                            console.log("~~~~~~~~~~~~~~~~~~~~~");
+                            console.log("Rotten Tomatoes Rating: " + JSON.parse(body).tomatoRating);
+                            console.log("~~~~~~~~~~~~~~~~~~~~~");
+                            console.log("Produced in (country): " + JSON.parse(body).Country);
+                            console.log("~~~~~~~~~~~~~~~~~~~~~");
+                            console.log("Main language: " + JSON.parse(body).Language);
+                            console.log("~~~~~~~~~~~~~~~~~~~~~");
+                            console.log("Plot: " + JSON.parse(body).Plot);
+                            console.log("~~~~~~~~~~~~~~~~~~~~~");
+                            console.log("Actors: " + JSON.parse(body).Actors);
+                            console.log("");
+                            console.log("======================================");
+                        }
+                    });
+                });
+
+                //===============================================FS============================================
+
             }
+            else if (user.commands === "do-what-it-says") {
+                // This block of code will read from the "random.txt" file.
+                // The code will store the contents of the reading inside the variable "data"
 
-        });
+                fs.readFile("random.txt", "utf8", function(error, data) {
+                        if (error) {
+                            console.log(error);
+                        }
+                        else {
+                            //  var dataArr = data.split(",");
 
-        var pick = function(caseData, functionData) {
-            switch (caseData) {
-                case 'my-tweets':
-                    getTweets();
-                    break;
-                case 'spotify-this-song':
-                    getSpotify(functionData);
-                case 'movie-this':
-                    getMovie(functionData);
-                case 'do-what-it-says':
-                    doWhatItSays();
-                    break;
-                default:
-                    console.log("Please enter a correct command");
-            }
-        }
+                            //  console.log(dataArr);
 
-        var runThis = function(argOne, argTwo) {
-            pick(argOne, argTwo);
-        };
+                            spotify.search({
+                                type: 'track',
+                                query: data,
+                                limit: 1
+                            }, function(err, data) {
+                                if (err) {
+                                    console.log('Error occurred: ' + err);
+                                    return;
 
-        runThis(process.argv[2], process.argv[3]);
+                                    //set up base path for finding information through Spotify API
+
+                                }
+                                else {
+                                    var trackName = data.tracks.items;
+
+                                    //for loop through results to pick out desired information
+
+                                    for (var i = 0; i < 1; i++) {
+
+                                        var trackData = trackName[i];
+
+                                        var artists = trackData.artists[0].name;
+                                        var song = trackData.name;
+                                        var preview = trackData.preview_url;
+                                        var album = trackData.album.name;
+
+                                        //console log out the information found on the track provided by user
+
+                                        console.log("============================================");
+                                        console.log("");
+                                        console.log("Artist: " + artists);
+                                        console.log("~~~~~~~~~~~~~~~~~~~~~");
+                                        console.log("Song Title: " + song);
+                                        console.log("~~~~~~~~~~~~~~~~~~~~~");
+                                        console.log("Album: " + album);
+                                        console.log("~~~~~~~~~~~~~~~~~~~~~");
+                                        console.log("Song Preview: " + preview);
+                                        console.log("");
+                                        console.log("============================================");
+                                    }
+                                }
+                            });
+                        }
+                    }
+                });
